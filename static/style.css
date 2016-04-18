@@ -66,14 +66,9 @@ p.footer{
     -webkit-box-shadow: 0 0 8px #D0D0D0;
 }
 
-/* Form Styles */
 label {
     display:inline-block;
-    *display: inline;     /* for IE7*/
-    zoom:1;              /* for IE7*/
-    float: left;
     padding-top: 5px;
-    text-align: right;
     width: 140px;
 }
 
