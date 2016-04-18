@@ -2,11 +2,12 @@
 
 Generate dynamic html forms to edit your yaml files.
 
-Depends on PYaml, Flask
-
-easy_install to pyaml & flask
+Depends on Pyaml, Flask, Paramiko and re
 
 ./web.py
 
-:D
+TODO: 
+- authenticating against active directory using python ldap
+- delivery edited yaml using url
+
 # YamlWebEditor
