@@ -6,8 +6,13 @@ Features:
 - dont edit/show sensitive data on web
 - download yaml using ssh
 
+# Install
 
-./web.py
+git clone https://github.com/gsilos/YamlWebEditor.git
+easy_install pyaml flask paramiko
+Edit web.py and set your prefered port
+Run: ./web.py
+Point your browser to: http://localhost
 
 TODO: 
 - authenticating against active directory using python ldap
