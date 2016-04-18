@@ -12,6 +12,7 @@ Edit your yaml files using html form. Depends on Pyaml, Flask, Paramiko and re.
 - git clone https://github.com/gsilos/YamlWebEditor.git
 - easy_install pyaml flask paramiko
 - Edit web.py and set your prefered port
+- put the public ssh key for paramiko in the same folder where web.py is in.
 - Run: ./web.py
 - Point your browser to: http://localhost
 
