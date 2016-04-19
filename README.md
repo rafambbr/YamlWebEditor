@@ -23,4 +23,6 @@ Edit your yaml files using html form. Depends on Pyaml, Flask, Paramiko and re.
 - backup
 - publish yaml back to the origin
 - restart daemons
+- create button support textarea for small blocks of yml
+- open hidden fields to specific users from specific ips.
 
