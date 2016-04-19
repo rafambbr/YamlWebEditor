@@ -134,7 +134,7 @@ def start():
 
     if remotehost and remotefile:
 
-        randonfile =    hashlib.md5(time.time()).hexdigest()
+        randonfile =    hashlib.md5(str(time.time())).hexdigest()
 
         sshuser = "deployer"
         localfile = "tmp/" + randonfile
