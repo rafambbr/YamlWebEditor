@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -u
 # encoding: utf-8
 
 # References:
@@ -11,6 +11,10 @@ from flask import Flask, render_template, request, g, session, Markup, url_for
 import paramiko
 import yaml
 import re
+import hashlib
+import time
+import sys
+import copy
 
 
 def getFromDict(dataDict, mapList):
@@ -63,6 +67,8 @@ def walk(d):
             elif isinstance(v, float):
                 g.keyvalue[str(key)] = float(v)
             g.path.pop()
+        elif v is None:
+            continue
         elif isinstance(v, dict):
             g.path.append(str(k))
             walk(v)
@@ -72,12 +78,15 @@ def walk(d):
 
 def hide(d):
     for k, v in d.items():
-        if isinstance(v, str):
+        if isinstance(v, str) or isinstance(v, int):
             g.path.append(str(k))
             key = ",".join(g.path)
             if isinstance(v, str):
-                if any(search in k for search in g.HiddenFields):
+                if any(search in key for search in g.HiddenFields):
                     g.keyvaluehide[str(key)] = "*" * len(v)
+            if isinstance(v, int):
+                if any(search in key for search in g.HiddenFields):
+                    g.keyvaluehide[str(key)] = 99999999
             g.path.pop()
         elif isinstance(v, dict):
             g.path.append(str(k))
@@ -98,7 +107,7 @@ def initialize():
     g.Total_Lines = 0
     g.dictionary = {}
     g.keyvaluehide = {}
-    g.HiddenFields = ["password", "secret", "key", "credentials", "vcap_services", "mongodb.uri", "mongodb,uri"]
+    g.HiddenFields = ["password", "secret", "key", "credentials", "vcap_services", "mongodb.uri", "mongodb,uri", "etl,uri", "etl.uri"]
 
 ########## Let the game begin
 
@@ -110,48 +119,54 @@ app.secret_key = 'super secret key'
 def index():
     return render_template("index.html")
 
-@app.route('/start/<origin>')
-def start(origin=None):
+@app.route('/start', methods=['GET'])
+def start():
 
     initialize()
 
     session.clear()
     session.modified = True
 
-    packages = {
-        'rpm1': '/Users/Fabiano/rpm1.yml',
-        'rpm2': '/Users/Fabiano/rpm2.yml',
-    }
 
-    try:
-        remotehost = origin.split("_")[0]
-        remotefile = packages[origin.split("_")[1]]
-    except Exception, e:
-        raise Exception("Please format your input better.")
+    remotehost = request.args.get('hostname')
+    remotefile = request.args.get('config')
+    md5hash    = request.args.get('md5hash')
 
-    sshuser = "Fabiano"
-    localfile = "origem.yml"
+    if remotehost and remotefile:
 
-    try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(remotehost, username=sshuser, key_filename="key.pub")
-        ftp = ssh.open_sftp()
-        ftp.get(remotefile, localfile)
-        ftp.close()
-    except Exception, e:
-        raise Exception("scp {}@{}:{} {} -> {}".format(sshuser, remotehost, remotefile, localfile, e))
+        randonfile =    hashlib.md5(time.time()).hexdigest()
 
-    stream = open("origem.yml", "r")
+        sshuser = "deployer"
+        localfile = "tmp/" + randonfile
 
-    session['yml'] = convert_keys_to_string(yaml.load(stream))
+        try:
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(remotehost, username=sshuser, key_filename="key.pub")
+                ftp = ssh.open_sftp()
+                ftp.get(remotefile, localfile)
+                ftp.close()
+        except Exception, e:
+                raise Exception("scp {}@{}:{} {} -> {}".format(sshuser, remotehost, remotefile, localfile, e))
+
+        stream = open(localfile, "r")
+
+        session['yml'] = convert_keys_to_string(yaml.load(stream))
+
+    elif md5hash:
+
+        stream = open("basket/" + md5hash, "r")
+
+        session['yml'] = convert_keys_to_string(yaml.load(stream))
+
+    else:
+        raise Exception("hey dude, do you really know what you are doing here? :-)")
 
     try:
         walk(session['yml'])
     except KeyError:
         raise Exception("walk failed")
 
-    g.HiddenFields = ["password", "secret", "key", "credentials", "vcap_services", "mongodb.uri", "mongodb,uri"]
 
     for key, value in sorted(g.keyvalue.items()):
 
@@ -174,10 +189,13 @@ def start(origin=None):
           <input type="text" style="width:100%" name="{0}" value=\"{1}\" disabled>
           <br/>\n""".format(key, value)
 
-    g.dictionary = session['yml']
+    g.dictionary = copy.deepcopy(session['yml'])
+
     g.path = []
     hide(g.dictionary)
+
     for key, value in g.keyvaluehide.items():
+        value=999999
         setInDict(g.dictionary, key.split(","), value)
 
     return render_template('editor.html',
@@ -206,7 +224,7 @@ def edit():
         if not re.match("^[a-zA-Z0-9,]+$", _name):
             raise Exception("format of name is not invalid. Please try again.")
 
-        if not re.match("^[a-zA-Z0-9-_.:?@\\/\s]+$", _value):
+        if not re.match("^[a-zA-Z0-9-_=.:?$}{@\\/\s]+$", _value):
             raise Exception("format of value is not invalid. Please try again.")
 
         if not any(search in _type for search in ["string", "int", "float", "bool"]):
@@ -227,13 +245,12 @@ def edit():
                 raise Exception("only true or false for bool")
 
     try:
-        g.dictionary = convert_keys_to_string(session['yml'])
+        g.dictionary = copy.deepcopy(convert_keys_to_string(session['yml']))
     except KeyError:
         raise Exception("No session! Buy your ticket and came back, I wait for you :)")
 
     walk(g.dictionary)
 
-    g.HiddenFields = ["password", "secret", "key", "credentials", "vcap_services", "mongodb.uri", "mongodb,uri"]
 
     for key, value in sorted(g.keyvalue.items()):
 
@@ -261,6 +278,7 @@ def edit():
     g.path = []
     hide(g.dictionary)
     for key, value in g.keyvaluehide.items():
+        value=999999
         setInDict(g.dictionary, key.split(","), value)
 
     return render_template('editor.html',
@@ -274,6 +292,24 @@ def clear():
     session.clear()
     return "cleared!"
 
+@app.route('/download', methods=['GET'])
+def download():
+
+#        if not re.match("^172.18.52" , request.remote_addr):
+#               return "no permission", 401
+
+        if not re.match("^[a-fA-F\d]{32}", request.args.get('md5hash') ):
+                return "invalid hash", 500
+
+        md5hash    = request.args.get('md5hash')
+
+        try:
+                stream = open("basket/" + md5hash, "r")
+        except Exception, e:
+                return "no such hash" , 200
+
+        return stream.read() , 200, {'Content-Type': 'text/plain; charset=utf-8'}
+
 @app.route('/create')
 def create():
     return render_template('create.html')
@@ -283,29 +319,32 @@ def update():
 
     initialize()
 
-    try:
-        g.dictionary = convert_keys_to_string(session['yml'])
-    except KeyError:
-        raise Exception("No session! Buy your ticket and came back, I wait for you :)")
 
     for k, v in request.form.items():
+        k.strip()
+        v.strip()
         key = k.encode('utf-8').split(",")
-        value = v.encode('utf-8')
+        value = v.encode('utf-8').strip()
         if value != "sbrubles":
             setInDict(session['yml'], key, value)
+
+    yml = yaml.dump(convert_keys_to_string(yaml.load(yaml.dump(session['yml']))), default_flow_style=False)
+
+    g.dictionary = copy.deepcopy(convert_keys_to_string(session['yml']))
 
     g.path = []
     hide(g.dictionary)
     for key, value in g.keyvaluehide.items():
+        value=999999
         setInDict(g.dictionary, key.split(","), value)
 
+    md5string =  hashlib.md5(yml).hexdigest()
+
     # :-)
-    with open("result.yml","w") as save:
-        yaml.dump(convert_keys_to_string(yaml.load(yaml.dump(session['yml']))), save, default_flow_style=False)
+    with open("basket/" + md5string ,"w") as save:
+        save.write(yml)
 
-
-    return render_template('update.html',
-                           YML=yaml.dump(convert_keys_to_string(yaml.load(yaml.dump(g.dictionary))), default_flow_style=False))
+    return render_template('update.html', YML=yml, MD5=md5string)
 
 
 if __name__ == '__main__':
@@ -313,5 +352,6 @@ if __name__ == '__main__':
     app.run(
         debug = True,
         host="0.0.0.0",
-        port=int("8777")
+        port=int("8421"),
+        processes=5
     )
