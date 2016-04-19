@@ -5,7 +5,7 @@ Edit your yaml files using html form. Depends on Pyaml, Flask, Paramiko and re.
 # Features
 
 - dont edit/show sensitive data on web
-- download yaml using ssh
+- download original yaml files from ssh
 
 # Install
 
@@ -26,4 +26,4 @@ Edit your yaml files using html form. Depends on Pyaml, Flask, Paramiko and re.
 - create button support textarea for small blocks of yml
 - open hidden fields to specific users from specific ips.
 - save string fields using single quote
-
+- download original yaml files from github
