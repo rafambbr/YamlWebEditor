@@ -109,6 +109,19 @@ def initialize():
     g.keyvaluehide = {}
     g.HiddenFields = ["password", "secret", "key", "credentials", "vcap_services", "mongodb.uri", "mongodb,uri", "etl,uri", "etl.uri"]
 
+#libera endpoints sensiveis para ips especificos
+def accept(ip):
+
+        hasAccess = [   "127.0.0/21",
+                        "172.0.0/24" ]
+
+        check = all_matching_cidrs(ip , hasAccess )
+        if len(check) > 0:
+                return True
+        else:
+                return False
+
+
 ########## Let the game begin
 
 app = Flask(__name__)
@@ -295,8 +308,8 @@ def clear():
 @app.route('/download', methods=['GET'])
 def download():
 
-#        if not re.match("^172.18.52" , request.remote_addr):
-#               return "no permission", 401
+        if not accept(request.remote_addr):
+                return "not authorized", 401
 
         if not re.match("^[a-fA-F\d]{32}", request.args.get('md5hash') ):
                 return "invalid hash", 500
